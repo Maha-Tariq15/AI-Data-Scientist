@@ -1,6 +1,8 @@
 import streamlit as st
+import pandas as pd
 from core.data_loader import load_csv
 from core.profiler import profile_dataset
+from core.quality_checker import analyze_data_quality
 
 def run_app():
     st.set_page_config(
@@ -30,11 +32,13 @@ def run_app():
 
     if uploaded_file is not None:
         df,error = load_csv(uploaded_file)
-        profile = profile_dataset(df)
         if error:
             st.error(error)
             return
-        st.success(f"Successfuly uploaded: {uploaded_file.name}")
+        
+        profile = profile_dataset(df)
+        quality_report = analyze_data_quality(df)
+        st.success(f"Successfully uploaded: {uploaded_file.name}")
         st.subheader("📊 Dataset Overview")
         col1, col2, col3=st.columns(3)
         with col1:
@@ -53,11 +57,41 @@ def run_app():
 
         st.subheader("❗Missing Values")
         missing_values={
-            "Column": list(profile["missing_values"].keys()),
-            "Missing Values": list(profile["missing_values"].values())
+            "Column": list(quality_report["missing_value_count"].keys()),
+            "Missing Values": list(quality_report["missing_value_count"].values())
         }
 
         st.table(missing_values)
 
+
+        st.subheader("🔍 Data Quality Report")
+        col1, col2=st.columns(2)
+        with col1:
+            st.write('### Columns with missing Values')
+            if quality_report["columns_with_missing"]:
+                missing_columns_df = pd.DataFrame({
+                    "Column": quality_report["columns_with_missing"]
+                })
+                st.table(missing_columns_df)
+            else:
+                st.success("No missing values found")
+        with col2:
+            st.write('### High Missing Columns')
+            if quality_report["high_missing_columns"]:
+                high_missing_df=pd.DataFrame({
+                    "Column": quality_report["high_missing_columns"]
+                })
+                st.table(high_missing_df)
+            else:
+                st.success("No high missing columns")
+        
+        st.write('### Constant Columns')
+        if quality_report["constant_columns"]:
+            constant_df = pd.DataFrame({
+                "Column": quality_report["constant_columns"]
+            })
+            st.table(constant_df)
+        else:
+            st.success("No constant columns")
         st.subheader("👀Dataset Preview")
         st.dataframe(df.head(20), use_container_width=True)
