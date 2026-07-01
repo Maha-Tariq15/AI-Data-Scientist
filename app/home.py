@@ -3,6 +3,8 @@ import pandas as pd
 from core.data_loader import load_csv
 from core.profiler import profile_dataset
 from core.quality_checker import analyze_data_quality
+from core.visualizer import plot_histogram
+from core.visualizer import plot_histogram, plot_boxplot
 
 def run_app():
     st.set_page_config(
@@ -93,5 +95,17 @@ def run_app():
             st.table(constant_df)
         else:
             st.success("No constant columns")
+
+        st.subheader("📊 Data Visualization")
+        numeric_columns=df.select_dtypes(include=["number"]).columns.tolist()
+        selected_column=st.selectbox("Select a numeric column", numeric_columns)
+        figure=plot_histogram(df, selected_column)
+        st.plotly_chart(figure, use_container_width=True)
+        
+        st.subheader("Box Plot")
+        box_fig=plot_boxplot(df, selected_column)
+        st.plotly_chart(box_fig, use_container_width=True)
+
+        
         st.subheader("👀Dataset Preview")
         st.dataframe(df.head(20), use_container_width=True)
