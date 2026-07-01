@@ -3,8 +3,10 @@ import pandas as pd
 from core.data_loader import load_csv
 from core.profiler import profile_dataset
 from core.quality_checker import analyze_data_quality
-from core.visualizer import plot_histogram
-from core.visualizer import plot_histogram, plot_boxplot
+from core.visualizer import (plot_histogram, plot_boxplot, plot_correlation_heatmap, plot_bar_chart)
+from core.cleaner import clean_dataset
+from core.statistics import generate_statistics
+from core.insight_generator import generate_insights
 
 def run_app():
     st.set_page_config(
@@ -98,14 +100,74 @@ def run_app():
 
         st.subheader("📊 Data Visualization")
         numeric_columns=df.select_dtypes(include=["number"]).columns.tolist()
-        selected_column=st.selectbox("Select a numeric column", numeric_columns)
-        figure=plot_histogram(df, selected_column)
-        st.plotly_chart(figure, use_container_width=True)
+        if numeric_columns:
+            selected_column=st.selectbox("Select a numeric column", numeric_columns)
+            figure=plot_histogram(df, selected_column)
+            st.plotly_chart(figure, use_container_width=True)
         
-        st.subheader("Box Plot")
-        box_fig=plot_boxplot(df, selected_column)
-        st.plotly_chart(box_fig, use_container_width=True)
+            st.subheader("Box Plot")
+            box_fig=plot_boxplot(df, selected_column)
+            st.plotly_chart(box_fig, use_container_width=True)
 
+            st.subheader("Correlation Heatmap")
+            heatmap = plot_correlation_heatmap(df)
+            if heatmap:
+                st.plotly_chart(heatmap, use_container_width=True)
+        else:
+            st.info("No numeric columns available for a correlation heatmap.")
         
+        st.subheader("Categorical Distribution")
+        categorical_columns=df.select_dtypes(include=["object", "category"]).columns.tolist()
+        if categorical_columns:
+            selected_cat=st.selectbox("Select categorical column", categorical_columns)
+
+            bar_fig=plot_bar_chart(df,selected_cat)
+            st.plotly_chart(bar_fig, use_container_width=True)
+        else:
+            st.info("No categorical columns found.")
+        
+        statistics=generate_statistics(df)
+        st.subheader("📈 Descriptive statistics")
+        for column, values in statistics.items():
+            st.write(f"### {column}")
+            stats_df = pd.DataFrame(values.items(), columns=["Statistic", "Value"])
+            st.table(stats_df)
+
+        insights=generate_insights(df, statistics, quality_report)
+        st.subheader("AI Inshights")
+        for insight in insights:
+            st.write(f". {insight}")
+            
+
         st.subheader("👀Dataset Preview")
         st.dataframe(df.head(20), use_container_width=True)
+
+
+        st.subheader("🧹 Data Cleaning")
+        strategy = st.selectbox("Missing Value Strategy", ["mean", "median", "mode"])
+        threshold = st.slider("Missing Value Threshold (%)", min_value=0, max_value=100, value=50)
+
+        if st.button("Clean Dataset"):
+            cleaned_df, cleaning_report=clean_dataset(df, strategy, threshold)
+            st.success("Dataset cleaned successfully!")
+            st.write(f"Duplicate rows removed: {cleaning_report['duplicate_rows_removed']}")
+            st.write("### Removed high missing columns")
+
+            if cleaning_report["high_missing_columns_removed"]:
+                st.write(cleaning_report["high_missing_columns_removed"])
+            else:
+                st.info("No columns removed")
+
+            st.write("### Removed constant columns")
+            if cleaning_report["constant_columns_removed"]:
+                st.write(cleaning_report["constant_columns_removed"])
+            else:
+                st.info("No constant columns removed")
+
+            st.subheader("🧹Cleaned Dataset Preview")
+            st.dataframe(cleaned_df.head(20), use_container_width=True)
+            csv=cleaned_df.to_csv(index=False)
+            st.download_button(label="Download Cleaned Dataset", data=csv, file_name="cleaned_dataset.csv", mime="text/csv")
+            
+    
+
